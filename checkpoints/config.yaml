@@ -19,7 +19,7 @@ backbone: resnet50
 batch_size: 16
 benchmark: true
 checkpoint_dir: checkpoints
-device: auto
+device: cuda
 epochs: 100
 gamma: 0.1
 heatmap_size:
@@ -66,6 +66,6 @@ use_visibility_mask: true
 use_wandb: true
 val_csv: data/processed/val.csv
 val_frequency: 1
-wandb_entity: albertruaz
+wandb_entity: vingle
 wandb_project: measure-extractor
 weight_decay: 1e-4

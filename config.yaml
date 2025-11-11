@@ -78,10 +78,10 @@ augmentation:
 log_frequency: 10 # Log every N batches
 use_wandb: true
 wandb_project: "measure-extractor"
-wandb_entity: "albertruaz" # wandb 사용자명 또는 팀명 (null이면 자동으로 사용자 계정 사용)
+wandb_entity: "vingle" # wandb 사용자명 또는 팀명 (null이면 자동으로 사용자 계정 사용)
 
 # System
-device: "auto" # auto, cuda, cpu
+device: "cuda" # auto, cuda, cpu - 명시적으로 cuda로 설정하여 NVIDIA GPU 사용
 mixed_precision: false # Use automatic mixed precision training
 pin_memory: true
 benchmark: true # cudnn.benchmark for faster training

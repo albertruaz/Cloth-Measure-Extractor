@@ -45,6 +45,18 @@ def main(cfg_path: str = 'config.yaml'):
     device_config = cfg.get('device', 'auto')
     device = get_device(device_config)
     
+    # CUDA 최적화 설정
+    if device.type == 'cuda':
+        # cudnn.benchmark 설정 (입력 크기가 고정된 경우 성능 향상)
+        if cfg.get('benchmark', True):
+            torch.backends.cudnn.benchmark = True
+            logger.info("cuDNN benchmark enabled for faster training")
+        else:
+            torch.backends.cudnn.benchmark = False
+        
+        # 모든 CUDA 시드 설정 (재현성을 위해)
+        torch.cuda.manual_seed_all(seed)
+    
     # Create data loaders
     logger.info("=" * 60)
     logger.info("Creating data loaders")

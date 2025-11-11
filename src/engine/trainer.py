@@ -84,20 +84,28 @@ class Trainer:
             wandb_project = config.get('wandb_project', 'measure-extractor')
             wandb_entity = config.get('wandb_entity', None)
             try:
+                # Wandb를 online 모드로 명시적으로 활성화
+                # 먼저 로그인 상태 확인 및 online 모드 강제 설정
+                os.environ['WANDB_MODE'] = 'online'  # 환경 변수로 online 모드 강제
+                
                 # entity가 None이면 자동으로 사용자 계정 사용
                 init_kwargs = {
-                    'project': wandb_project,
+                    'project': "measure-extractor",
+                    'entity': "vingle",
                     'config': config,
                     'name': f"{wandb_project}-run",
-                    'mode': 'online'  # online, offline, disabled
+                    'mode': 'online',  # 명시적으로 online 모드 설정
+                    'settings': wandb.Settings(start_method="thread")  # 멀티프로세싱 호환성
                 }
                 if wandb_entity:
                     init_kwargs['entity'] = wandb_entity
                 
                 wandb.init(**init_kwargs)
-                logger.info(f"Wandb initialized: project={wandb_project}, entity={wandb_entity or 'auto'}")
+                logger.info(f"Wandb initialized in ONLINE mode: project={wandb_project}, entity={wandb_entity or 'auto'}")
+                logger.info(f"Wandb run URL: {wandb.run.url if wandb.run else 'N/A'}")
             except Exception as e:
                 logger.warning(f"Failed to initialize wandb: {e}. Continuing without wandb logging.")
+                logger.warning(f"Error details: {type(e).__name__}: {str(e)}")
                 self.use_wandb = False
         elif config.get('use_wandb', False) and not WANDB_AVAILABLE:
             logger.warning("wandb is enabled in config but not installed. Install with: pip install wandb")
@@ -206,7 +214,7 @@ class Trainer:
             
             # Average over visible keypoints
             num_visible = visibility.sum()
-            if num_visible > 0:
+            if num_visible.item() > 0:
                 loss = loss.sum() / num_visible
             else:
                 loss = loss.sum()
