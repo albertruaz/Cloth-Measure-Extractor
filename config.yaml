@@ -1,0 +1,88 @@
+# Pants Measurement Keypoint Detection Configuration
+
+# Random seed for reproducibility
+seed: 42
+
+# Measurement names (each will have 2 keypoints: start and end)
+names:
+  - TOTAL_LENGTH
+  - WAIST
+  - CROTCH
+  - HIP
+  - THIGH
+  - HEM
+
+# Data paths
+train_csv: "data/processed/train.csv"
+val_csv: "data/processed/val.csv"
+test_csv: "data/processed/test.csv"
+
+# Image and heatmap configuration
+image_size: [512, 512] # [height, width] for input images
+heatmap_size: [128, 128] # [height, width] for output heatmaps
+sigma: 2.0 # Gaussian kernel sigma for heatmap generation
+
+# Model architecture
+backbone: "resnet50" # Options: resnet18, resnet34, resnet50, resnet101
+pretrained: true
+num_deconv_layers: 3
+num_deconv_filters: [256, 256, 256]
+num_deconv_kernels: [4, 4, 4]
+
+# Training configuration
+batch_size: 16
+num_workers: 4
+epochs: 100
+learning_rate: 1e-3
+weight_decay: 1e-4
+optimizer: "adam" # Options: adam, adamw, sgd
+
+# Learning rate scheduler
+scheduler: "step" # Options: step, cosine, plateau
+step_size: 30 # For step scheduler
+gamma: 0.1 # Learning rate decay factor
+patience: 10 # For plateau scheduler
+
+# Loss configuration
+loss_type: "mse" # Options: mse, l1, smooth_l1
+use_visibility_mask: true # Mask out missing keypoints (0,0,0,0)
+
+# Validation and checkpointing
+val_frequency: 1 # Validate every N epochs
+save_frequency: 10 # Save checkpoint every N epochs
+save_best_only: true # Only save best model based on validation loss
+checkpoint_dir: "checkpoints"
+
+# Evaluation metrics
+pck_threshold: 10 # Pixel threshold for PCK (Percentage of Correct Keypoints)
+
+# Data augmentation (Albumentations)
+augmentation:
+  train:
+    random_crop: true
+    crop_scale: [0.8, 1.0]
+    horizontal_flip: true
+    flip_prob: 0.5
+    color_jitter: true
+    brightness: 0.2
+    contrast: 0.2
+    saturation: 0.2
+    hue: 0.1
+    rotation: 10 # degrees
+    rotation_prob: 0.3
+  val:
+    # Only resize and normalize for validation
+    resize_only: true
+
+# Logging
+log_frequency: 10 # Log every N batches
+use_wandb: true
+wandb_project: "measure-extractor"
+wandb_entity: "albertruaz" # wandb 사용자명 또는 팀명 (null이면 자동으로 사용자 계정 사용)
+
+# System
+device: "auto" # auto, cuda, cpu
+mixed_precision: false # Use automatic mixed precision training
+pin_memory: true
+benchmark: true # cudnn.benchmark for faster training
+

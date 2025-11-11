@@ -1,0 +1,71 @@
+augmentation:
+  train:
+    brightness: 0.2
+    color_jitter: true
+    contrast: 0.2
+    crop_scale:
+    - 0.8
+    - 1.0
+    flip_prob: 0.5
+    horizontal_flip: true
+    hue: 0.1
+    random_crop: true
+    rotation: 10
+    rotation_prob: 0.3
+    saturation: 0.2
+  val:
+    resize_only: true
+backbone: resnet50
+batch_size: 16
+benchmark: true
+checkpoint_dir: checkpoints
+device: auto
+epochs: 100
+gamma: 0.1
+heatmap_size:
+- 128
+- 128
+image_size:
+- 512
+- 512
+learning_rate: 1e-3
+log_frequency: 10
+loss_type: mse
+mixed_precision: false
+names:
+- TOTAL_LENGTH
+- WAIST
+- CROTCH
+- HIP
+- THIGH
+- HEM
+num_deconv_filters:
+- 256
+- 256
+- 256
+num_deconv_kernels:
+- 4
+- 4
+- 4
+num_deconv_layers: 3
+num_workers: 4
+optimizer: adam
+patience: 10
+pck_threshold: 10
+pin_memory: true
+pretrained: true
+save_best_only: true
+save_frequency: 10
+scheduler: step
+seed: 42
+sigma: 2.0
+step_size: 30
+test_csv: data/processed/test.csv
+train_csv: data/processed/train.csv
+use_visibility_mask: true
+use_wandb: true
+val_csv: data/processed/val.csv
+val_frequency: 1
+wandb_entity: albertruaz
+wandb_project: measure-extractor
+weight_decay: 1e-4
