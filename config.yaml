@@ -1,8 +1,3 @@
-# Pants Measurement Keypoint Detection Configuration
-
-# Random seed for reproducibility
-seed: 42
-
 # Measurement names (each will have 2 keypoints: start and end)
 names:
   - TOTAL_LENGTH
@@ -23,7 +18,7 @@ heatmap_size: [128, 128] # [height, width] for output heatmaps
 sigma: 2.0 # Gaussian kernel sigma for heatmap generation
 
 # Model architecture
-backbone: "resnet50" # Options: resnet18, resnet34, resnet50, resnet101
+backbone: "resnet18"     # <-- resnet50 -> resnet18
 pretrained: true
 num_deconv_layers: 3
 num_deconv_filters: [256, 256, 256]
@@ -32,16 +27,18 @@ num_deconv_kernels: [4, 4, 4]
 # Training configuration
 batch_size: 16
 num_workers: 4
-epochs: 100
-learning_rate: 1e-3
+epochs: 60               # <-- 100 -> 60
+learning_rate: 3e-4      # <-- 1e-3 -> 3e-4
 weight_decay: 1e-4
-optimizer: "adam" # Options: adam, adamw, sgd
+optimizer: "adam"        # Options: adam, adamw, sgd
+freeze_backbone_epochs: 10  # <-- 새로 추가 (초반 10 epoch backbone freeze)
 
 # Learning rate scheduler
-scheduler: "step" # Options: step, cosine, plateau
-step_size: 30 # For step scheduler
-gamma: 0.1 # Learning rate decay factor
-patience: 10 # For plateau scheduler
+scheduler: "cosine"      # <-- step -> cosine
+step_size: 30            # cosine에서는 안 쓰이지만 남겨둬도 문제 없음
+gamma: 0.1
+patience: 10             # For plateau scheduler
+
 
 # Loss configuration
 loss_type: "mse" # Options: mse, l1, smooth_l1

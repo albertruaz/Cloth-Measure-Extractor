@@ -34,15 +34,6 @@ class Trainer:
         config: Dict[str, Any],
         device: str = 'cuda'
     ):
-        """Initialize trainer.
-        
-        Args:
-            model: KPNet model
-            train_loader: Training data loader
-            val_loader: Validation data loader
-            config: Configuration dictionary
-            device: Device to train on ('cuda' or 'cpu')
-        """
         self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -51,8 +42,14 @@ class Trainer:
         
         # Training parameters
         self.epochs = config['epochs']
-        self.learning_rate = float(config['learning_rate'])  # YAML에서 문자열로 읽힐 수 있으므로 float 변환
-        self.weight_decay = float(config.get('weight_decay', 1e-4))  # YAML에서 문자열로 읽힐 수 있으므로 float 변환
+        self.learning_rate = float(config['learning_rate'])
+        self.weight_decay = float(config.get('weight_decay', 1e-4))
+        
+        # Backbone freeze 설정
+        self.freeze_backbone_epochs = int(config.get('freeze_backbone_epochs', 0))
+        if self.freeze_backbone_epochs > 0:
+            self._set_backbone_trainable(False)
+            logger.info(f"Backbone will be frozen for first {self.freeze_backbone_epochs} epochs")
         
         # Setup optimizer
         self.optimizer = self._get_optimizer()
@@ -116,6 +113,18 @@ class Trainer:
         logger.info(f"  Learning rate: {self.learning_rate}")
         logger.info(f"  Optimizer: {config.get('optimizer', 'adam')}")
     
+    def _set_backbone_trainable(self, trainable: bool):
+        """Backbone layer의 requires_grad를 켜거나 끈다."""
+        if not hasattr(self.model, "backbone"):
+            logger.warning("Model has no attribute 'backbone'; cannot freeze/unfreeze.")
+            return
+        
+        for param in self.model.backbone.parameters():
+            param.requires_grad = trainable
+        
+        state = "trainable" if trainable else "frozen"
+        logger.info(f"Backbone is now {state}")
+
     def _get_optimizer(self) -> optim.Optimizer:
         """Get optimizer."""
         optimizer_name = self.config.get('optimizer', 'adam').lower()
@@ -387,6 +396,10 @@ class Trainer:
         logger.info("=" * 60)
         
         for epoch in range(1, self.epochs + 1):
+            # freeze 기간이 끝나면 backbone unfreeze
+            if self.freeze_backbone_epochs > 0 and epoch == self.freeze_backbone_epochs + 1:
+                self._set_backbone_trainable(True)
+            
             # Train
             train_metrics = self.train_epoch(epoch)
             logger.info(f"Epoch {epoch}/{self.epochs} - Train Loss: {train_metrics['loss']:.4f}")

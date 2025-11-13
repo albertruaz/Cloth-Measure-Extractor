@@ -66,25 +66,25 @@ class PantsMeasurementDataset(Dataset):
         self.transform = self._get_transforms()
     
     def _get_transforms(self) -> A.Compose:
-        """Get albumentations transforms."""
-        if self.is_train:
-            # Training augmentation
-            transform = A.Compose([
-                A.Resize(self.image_size[0], self.image_size[1]),
-                A.HorizontalFlip(p=0.5),
-                A.Rotate(limit=10, p=0.3),
-                A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ToTensorV2()
-            ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
-        else:
-            # Validation/test: only resize and normalize
-            transform = A.Compose([
-                A.Resize(self.image_size[0], self.image_size[1]),
-                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-                ToTensorV2()
-            ], keypoint_params=A.KeypointParams(format='xy', remove_invisible=False))
+        """Get albumentations transforms.
         
+        옷 사진에서 절대 좌우 반전/회전이 되면 안 되기 때문에
+        학습/검증 모두 동일하게 Resize + Normalize만 적용한다.
+        """
+        transform = A.Compose(
+            [
+                A.Resize(self.image_size[0], self.image_size[1]),
+                A.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                ),
+                ToTensorV2(),
+            ],
+            keypoint_params=A.KeypointParams(
+                format="xy",
+                remove_invisible=False,
+            ),
+        )
         return transform
     
     def _load_image(self, image_path: str) -> Image.Image:

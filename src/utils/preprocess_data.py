@@ -10,6 +10,31 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 from sklearn.model_selection import train_test_split
 
+def canonicalize_segment(x1, y1, x2, y2):
+    """
+    선분의 방향에 따라 점 순서를 정규화한다.
+    
+    - 세로 성분(|dy|)이 더 크면: 세로선으로 간주
+      → 위쪽 점(y가 더 작은 점)을 start, 아래쪽 점을 end
+    - 그 외: 가로/대각선
+      → 왼쪽 점(x가 더 작은 점)을 start, 오른쪽 점을 end
+    """
+    dx = x2 - x1
+    dy = y2 - y1
+
+    # 세로선
+    if abs(dy) >= abs(dx):
+        if y1 <= y2:
+            return x1, y1, x2, y2, "vertical"
+        else:
+            return x2, y2, x1, y1, "vertical"
+    # 가로/대각선
+    else:
+        if x1 <= x2:
+            return x1, y1, x2, y2, "horizontal"
+        else:
+            return x2, y2, x1, y1, "horizontal"
+
 
 class DataPreprocessor:
     """CSV 데이터를 전처리하는 클래스"""
@@ -44,35 +69,44 @@ class DataPreprocessor:
             print(f"JSON 파싱 에러: {e}")
             return []
     
-    def filter_valid_measurements(self, items: List[Dict]) -> Dict[str, Dict]:
+        def filter_valid_measurements(self, items: List[Dict]) -> Dict[str, Dict]:
         """
         유효한 측정 항목만 필터링 (좌표가 0이 아닌 것만)
+        + 점 두 개의 순서를 세로/가로 기준으로 정규화한다.
         
-        Args:
-            items: 측정 항목 리스트
-            
-        Returns:
-            {measurement_name: {'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2}, ...}
+        - 세로 성분이 더 크면: 위쪽 점을 start, 아래쪽 점을 end
+        - 그 외(가로/대각선): 왼쪽 점을 start, 오른쪽 점을 end
         """
         valid_measurements = {}
         
         for item in items:
             name = item.get('name', '')
-            x1, y1, x2, y2 = item.get('x1', 0), item.get('y1', 0), item.get('x2', 0), item.get('y2', 0)
+            x1, y1, x2, y2 = (
+                item.get('x1', 0),
+                item.get('y1', 0),
+                item.get('x2', 0),
+                item.get('y2', 0),
+            )
             
-            # 좌표가 모두 0이 아닌 경우만 유효
-            if x1 != 0 or y1 != 0 or x2 != 0 or y2 != 0:
-                valid_measurements[name] = {
-                    'x1': x1,
-                    'y1': y1,
-                    'x2': x2,
-                    'y2': y2,
-                    'value': item.get('value', 0),
-                    'unit': item.get('unit', 'CM')
-                }
+            # 좌표가 모두 0인 경우는 measurement가 없다고 판단
+            if x1 == 0 and y1 == 0 and x2 == 0 and y2 == 0:
+                continue
+            
+            # 점 순서 정규화
+            cx1, cy1, cx2, cy2, orientation = canonicalize_segment(x1, y1, x2, y2)
+            
+            valid_measurements[name] = {
+                'x1': cx1,
+                'y1': cy1,
+                'x2': cx2,
+                'y2': cy2,
+                'value': item.get('value', 0),
+                'unit': item.get('unit', 'CM'),
+                'orientation': orientation,  # 나중에 분석할 때 유용 (필요없으면 빼도 됨)
+            }
         
         return valid_measurements
-    
+
     def process_csv(self) -> pd.DataFrame:
         """
         CSV 파일을 읽고 팬츠 카테고리만 필터링하여 전처리
