@@ -48,6 +48,11 @@ csv_data/*.csv
 
 # Logs
 *.log
+
+# Environment variables
+.env
+*.pem
+*.key
 logs/
 wandb/
 

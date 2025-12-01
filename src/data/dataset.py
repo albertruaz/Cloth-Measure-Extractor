@@ -12,7 +12,10 @@ import io
 import requests
 import logging
 
-from ..utils.heatmap import generate_gaussian_heatmap
+try:
+    from ..utils.utils import generate_gaussian_heatmap
+except ImportError:
+    from utils.utils import generate_gaussian_heatmap
 
 logger = logging.getLogger(__name__)
 
@@ -53,8 +56,8 @@ class PantsMeasurementDataset(Dataset):
         # Number of keypoints = 2 * number of measurement names
         self.num_keypoints = 2 * len(names)
         
-        # Load CSV
-        self.df = pd.read_csv(csv_path)
+        # Load CSV (탭으로 구분된 파일)
+        self.df = pd.read_csv(csv_path, sep='\t')
         logger.info(f"Loaded {len(self.df)} samples from {csv_path}")
         
         # Create name to index mapping
@@ -105,21 +108,32 @@ class PantsMeasurementDataset(Dataset):
             # Return a blank image as fallback
             return Image.new('RGB', (512, 512), color='gray')
     
-    def _parse_measurements(self, measurements_json: str) -> Dict[str, Dict]:
-        """Parse measurements JSON string.
+    def _parse_measurements(self, request_body: str) -> Dict[str, Dict]:
+        """Parse measurements from request_body JSON string.
         
-        Expected format:
-        {
-            "TOTAL_LENGTH": {"x1": 871, "y1": 643, "x2": 659, "y2": 2298, "value": 98.36, "unit": "CM"},
-            "WAIST": {"x1": 711, "y1": 636, "x2": 1233, "y2": 594, "value": 31.77, "unit": "CM"},
-            ...
-        }
+        Expected format: {"name": "", "items": [{"name": "TOTAL_LENGTH", "x1": ..., ...}]}
+        Returns: {"TOTAL_LENGTH": {"x1": ..., "y1": ..., ...}, ...}
         """
         try:
-            measurements = json.loads(measurements_json)
+            data = json.loads(request_body)
+            measurements = {}
+            
+            # 'items' 배열에서 measurement 추출
+            if 'items' in data:
+                for item in data['items']:
+                    name = item.get('name')
+                    if name:
+                        measurements[name] = item
+            # 또는 'measurements' 배열
+            elif 'measurements' in data:
+                for item in data['measurements']:
+                    name = item.get('name')
+                    if name:
+                        measurements[name] = item
+            
             return measurements
         except Exception as e:
-            logger.error(f"Failed to parse measurements: {e}")
+            logger.error(f"Failed to parse request_body: {e}")
             return {}
     
     def _extract_keypoints(
@@ -212,9 +226,9 @@ class PantsMeasurementDataset(Dataset):
         image = self._load_image(image_uri)
         original_size = image.size  # (width, height)
         
-        # Parse measurements
-        measurements_json = row['measurements']
-        measurements = self._parse_measurements(measurements_json)
+        # Parse measurements from request_body
+        request_body = row['request_body']
+        measurements = self._parse_measurements(request_body)
         
         # Extract keypoints in original image coordinates
         keypoints_orig, visibility = self._extract_keypoints(measurements, original_size)

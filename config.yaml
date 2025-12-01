@@ -1,16 +1,11 @@
-# Measurement names (each will have 2 keypoints: start and end)
-names:
-  - TOTAL_LENGTH
-  - WAIST
-  - CROTCH
-  - HIP
-  - THIGH
-  - HEM
+# Measurement names (자동으로 CSV에서 로드됨 - train.py에서 설정)
+# names는 train.py 실행 시 {category}_measurements.json에서 자동 로드됩니다
+names: []
 
-# Data paths
-train_csv: "data/processed/train.csv"
-val_csv: "data/processed/val.csv"
-test_csv: "data/processed/test.csv"
+# Data paths (train.py 실행 시 --train-csv로 지정)
+train_csv: ""
+val_csv: ""
+test_csv: ""
 
 # Image and heatmap configuration
 image_size: [512, 512] # [height, width] for input images
