@@ -81,55 +81,139 @@ def load_image(image_path: str) -> Image.Image:
         return None
 
 
-def draw_keypoints(image: Image.Image, keypoints: np.ndarray, names: list, 
-                   gt_keypoints: np.ndarray = None) -> Image.Image:
+def _make_colors(num_points: int) -> np.ndarray:
+    """각 keypoint마다 다른 RGB 색을 할당."""
+    base_colors = np.array([
+        [255, 0, 0],      # red
+        [0, 255, 0],      # green
+        [0, 0, 255],      # blue
+        [255, 255, 0],    # yellow
+        [255, 128, 0],    # orange
+        [255, 0, 255],    # magenta
+        [0, 255, 255],    # cyan
+        [153, 76, 51],    # brown
+        [128, 0, 255],    # violet
+        [0, 128, 128],    # teal
+        [128, 255, 0],    # lime
+        [255, 192, 203],  # pink
+    ], dtype=np.int32)
+
+    if num_points <= len(base_colors):
+        return base_colors[:num_points]
+    else:
+        reps = int(np.ceil(num_points / len(base_colors)))
+        colors = np.tile(base_colors, (reps, 1))
+        return colors[:num_points]
+
+
+def draw_keypoints(image: Image.Image, keypoints: np.ndarray, names: list) -> Image.Image:
     """
-    이미지에 키포인트 그리기
+    이미지에 키포인트 그리기 (matplotlib 스타일)
     
     Args:
         image: PIL 이미지
         keypoints: (K, 2) 예측 키포인트 좌표
         names: 측정 이름 리스트
-        gt_keypoints: (K, 2) 정답 키포인트 (optional)
     """
-    draw = ImageDraw.Draw(image)
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
     
-    # 색상 (예측: 빨강, 정답: 초록)
-    pred_color = (255, 0, 0)
-    gt_color = (0, 255, 0)
-    line_color = (255, 255, 0)
+    img_np = np.array(image)
+    K = keypoints.shape[0]
+    colors = _make_colors(K)
+    
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(img_np)
+    ax.axis('off')
     
     # 각 측정치에 대해 start, end 키포인트 그리기
     for i, name in enumerate(names):
         start_idx = 2 * i
         end_idx = 2 * i + 1
         
+        if start_idx >= K or end_idx >= K:
+            continue
+        
         # 예측 키포인트
-        start_x, start_y = keypoints[start_idx]
-        end_x, end_y = keypoints[end_idx]
+        x1, y1 = keypoints[start_idx]
+        x2, y2 = keypoints[end_idx]
+        
+        c = colors[start_idx] / 255.0  # normalize to [0, 1]
         
         # 선 그리기
-        draw.line([(start_x, start_y), (end_x, end_y)], fill=line_color, width=2)
+        ax.plot([x1, x2], [y1, y2], color=c, linewidth=3, alpha=0.8)
         
-        # 점 그리기
-        r = 5
-        draw.ellipse([start_x-r, start_y-r, start_x+r, start_y+r], fill=pred_color)
-        draw.ellipse([end_x-r, end_y-r, end_x+r, end_y+r], fill=pred_color)
+        # 점 그리기 (start: circle, end: x)
+        ax.scatter(x1, y1, s=100, c=[c], marker='o', edgecolors='white', linewidths=2)
+        ax.scatter(x2, y2, s=100, c=[c], marker='x', linewidths=3)
         
-        # 정답 키포인트 (있으면)
-        if gt_keypoints is not None:
-            gt_start_x, gt_start_y = gt_keypoints[start_idx]
-            gt_end_x, gt_end_y = gt_keypoints[end_idx]
-            
-            # 0이 아닌 경우만 그리기 (missing keypoint 제외)
-            if not (gt_start_x == 0 and gt_start_y == 0):
-                draw.ellipse([gt_start_x-r, gt_start_y-r, gt_start_x+r, gt_start_y+r], 
-                           outline=gt_color, width=2)
-            if not (gt_end_x == 0 and gt_end_y == 0):
-                draw.ellipse([gt_end_x-r, gt_end_y-r, gt_end_x+r, gt_end_y+r], 
-                           outline=gt_color, width=2)
+        # 텍스트 라벨 추가
+        ax.text(x1, y1 - 15, name, fontsize=8, color='white', 
+               bbox=dict(boxstyle='round,pad=0.3', facecolor=c, alpha=0.7),
+               ha='center')
     
-    return image
+    # PIL Image로 변환
+    fig.canvas.draw()
+    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    result_image = Image.fromarray(buf)
+    plt.close(fig)
+    
+    return result_image
+
+
+def create_heatmap_overlay(image: Image.Image, heatmaps: np.ndarray, names: list) -> Image.Image:
+    """
+    모든 keypoint heatmap을 색깔 다르게 해서 원본 위에 overlay한 이미지 생성
+    
+    Args:
+        image: PIL Image (원본)
+        heatmaps: (K, H_hm, W_hm) numpy array
+        names: measurement 이름 리스트
+    """
+    import matplotlib.pyplot as plt
+    import matplotlib
+    matplotlib.use('Agg')
+    
+    img_np = np.array(image).astype(np.float32) / 255.0
+    H, W = img_np.shape[:2]
+    K, H_hm, W_hm = heatmaps.shape
+
+    colors = _make_colors(K)
+    heat_rgb = np.zeros((H_hm, W_hm, 3), dtype=np.float32)
+
+    # 각 keypoint heatmap에 색 입히고 합산
+    for k in range(K):
+        hm = heatmaps[k]
+        if hm.max() > 0:
+            hm = hm / hm.max()
+        c = colors[k] / 255.0
+        for ch in range(3):
+            heat_rgb[..., ch] += hm * c[ch]
+
+    heat_rgb = np.clip(heat_rgb, 0.0, 1.0)
+
+    # 원본 크기로 업샘플
+    heat_img = Image.fromarray((heat_rgb * 255).astype(np.uint8))
+    heat_img = heat_img.resize((W, H), resample=Image.BILINEAR)
+    heat_np_up = np.array(heat_img).astype(np.float32) / 255.0
+
+    # overlay (원본 0.6, heatmap 0.4 비율)
+    overlay = np.clip(img_np * 0.6 + heat_np_up * 0.4, 0.0, 1.0)
+
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ax.imshow(overlay)
+    ax.axis('off')
+    
+    # PIL Image로 변환
+    fig.canvas.draw()
+    buf = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+    buf = buf.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+    result_image = Image.fromarray(buf)
+    plt.close(fig)
+    
+    return result_image
 
 
 def visualize_dataset(model, data_csv: str, config: dict, output_dir: Path, 
@@ -145,9 +229,17 @@ def visualize_dataset(model, data_csv: str, config: dict, output_dir: Path,
     if len(df) > num_samples:
         df = df.sample(n=num_samples, random_state=42)
     
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # 출력 폴더 생성
+    data_keypoint_dir = output_dir / "data_keypoint"
+    pred_keypoint_dir = output_dir / "pred_keypoint"
+    pred_heatmap_dir = output_dir / "pred_heatmap"
+    
+    data_keypoint_dir.mkdir(parents=True, exist_ok=True)
+    pred_keypoint_dir.mkdir(parents=True, exist_ok=True)
+    pred_heatmap_dir.mkdir(parents=True, exist_ok=True)
     
     # 각 샘플 시각화
+    sample_num = 0
     for idx, row in tqdm(df.iterrows(), total=len(df), desc='시각화 중'):
         try:
             # 이미지 로드
@@ -185,6 +277,9 @@ def visualize_dataset(model, data_csv: str, config: dict, output_dir: Path,
                 to_size=(orig_w, orig_h)
             )
             
+            # heatmap도 numpy로 가져오기
+            heatmaps_np = pred_heatmaps.cpu().numpy()[0]  # (K, H_hm, W_hm)
+            
             # 정답 좌표 (request_body에서 파싱)
             import json
             request_body = row['request_body']
@@ -216,18 +311,32 @@ def visualize_dataset(model, data_csv: str, config: dict, output_dir: Path,
                     gt_coords.extend([[0, 0], [0, 0]])
             gt_coords = np.array(gt_coords)
             
-            # 시각화
-            vis_image = draw_keypoints(image, pred_coords, config['names'], gt_coords)
+            # 파일명 (숫자만)
+            filename = f"{sample_num:05d}.png"
             
-            # 저장
-            output_path = output_dir / f"sample_{idx}.jpg"
-            vis_image.save(output_path)
+            # 1. data_keypoint: 실제 데이터 기반 시각화
+            vis_data = draw_keypoints(image.copy(), gt_coords, config['names'])
+            vis_data.save(data_keypoint_dir / filename)
+            
+            # 2. pred_keypoint: 예측 키포인트 + 선
+            vis_pred = draw_keypoints(image.copy(), pred_coords, config['names'])
+            vis_pred.save(pred_keypoint_dir / filename)
+            
+            # 3. pred_heatmap: 히트맵 오버레이
+            vis_heatmap = create_heatmap_overlay(image.copy(), heatmaps_np, config['names'])
+            vis_heatmap.save(pred_heatmap_dir / filename)
+            
+            logger.info(f"  Saved: {filename}")
+            sample_num += 1
             
         except Exception as e:
             logger.error(f"샘플 {idx} 처리 실패: {e}")
             continue
     
     logger.info(f"시각화 완료: {output_dir}")
+    logger.info(f"  data_keypoint: {data_keypoint_dir}")
+    logger.info(f"  pred_keypoint: {pred_keypoint_dir}")
+    logger.info(f"  pred_heatmap: {pred_heatmap_dir}")
 
 
 def main():

@@ -99,7 +99,7 @@ python train.py --category pants
 python visualize.py
 
 # 옵션 지정
-python visualize.py --num_samples 20
+python visualize.py --category shirts
 ```
 
 ## 📊 모델 아키텍처
