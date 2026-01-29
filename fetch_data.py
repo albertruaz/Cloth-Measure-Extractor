@@ -31,7 +31,7 @@ load_dotenv()
 class DataFetcher:
     """DB에서 측정 데이터를 가져오는 클래스"""
     
-    def __init__(self, config_path: str = 'db_config.yaml'):
+    def __init__(self, config_path: str = 'db_config.yaml', target_category: str = None):
         """환경 변수(.env)와 설정 파일(db_config.yaml)에서 로드"""
         # .env에서 DB 연결 정보 로드
         self.ssh_enabled = os.getenv('SSH_ENABLED', 'false').lower() == 'true'
@@ -48,21 +48,68 @@ class DataFetcher:
         self.db_remote_host = os.getenv('DB_REMOTE_HOST', '')
         self.db_remote_port = int(os.getenv('DB_REMOTE_PORT', 3306))
         
+        # 카테고리 프리셋 정의
+        self.CATEGORY_PRESETS = {
+            "tops": {
+                "categories_name": ["tops"],
+                "categories": [
+                    "맨투맨, 후드", "니트", "블라우스, 셔츠", "반팔 티셔츠", "긴팔 티셔츠",
+                    "가디건", "자켓", "코트", "바람막이, 져지", "패딩"
+                ]
+            },
+            "sleeveless_onepiece_vest": {
+                "categories_name": ["sleeveless_onepiece_vest"],
+                "categories": [
+                    "민소매", "미니 원피스", "미디 원피스", "롱 원피스", "점프수트", "베스트"
+                ]
+            },
+            "pants": {
+                "categories_name": ["pants"],
+                "categories": [
+                    "데님 팬츠", "코튼 팬츠", "슬랙스", "숏 팬츠", "트레이닝 팬츠"
+                ]
+            },
+            "skirts": {
+                "categories_name": ["skirts"],
+                "categories": [
+                    "미니 스커트", "미디 스커트", "롱 스커트"
+                ]
+            }
+        }
+        
         # db_config.yaml에서 쿼리 설정 로드
         import yaml
         try:
             with open(config_path, 'r') as f:
                 config = yaml.safe_load(f)
             query_config = config.get('query', {})
-            self.categories_name = query_config.get('categories_name', [])
-            self.categories = query_config.get('categories', [])
+            
+            # target_category가 지정되면 해당 프리셋 강제 적용
+            if target_category and target_category in self.CATEGORY_PRESETS:
+                logger.info(f"CLI 옵션 적용: --category {target_category}")
+                preset = self.CATEGORY_PRESETS[target_category]
+                self.categories_name = preset['categories_name']
+                self.categories = preset['categories']
+            else:
+                self.categories_name = query_config.get('categories_name', [])
+                self.categories = query_config.get('categories', [])
+                
             self.date_from = query_config.get('date_from', '2025-10-10')
             self.member_ids = query_config.get('member_ids', [2, 3])
             self.limit = query_config.get('limit')
         except FileNotFoundError:
             logger.warning(f"설정 파일 {config_path}를 찾을 수 없습니다. 기본값 사용")
-            self.categories_name = []
-            self.categories = []
+            
+            # 파일이 없어도 target_category가 있으면 프리셋 적용
+            if target_category and target_category in self.CATEGORY_PRESETS:
+                logger.info(f"CLI 옵션 적용: --category {target_category}")
+                preset = self.CATEGORY_PRESETS[target_category]
+                self.categories_name = preset['categories_name']
+                self.categories = preset['categories']
+            else:
+                self.categories_name = []
+                self.categories = []
+                
             self.date_from = '2025-10-10'
             self.member_ids = [2, 3]
             self.limit = None
@@ -91,7 +138,8 @@ class DataFetcher:
             logger.info(f"✓ SSH 터널 연결 성공")
             return tunnel
             
-        except ImportError:
+        except ImportError as e:
+            logger.error(f"sshtunnel 임포트 에러 상세: {e}")
             logger.error("sshtunnel 패키지가 필요합니다: pip install sshtunnel")
             sys.exit(1)
         except Exception as e:
@@ -462,10 +510,12 @@ def main():
                         help='카테고리별로 개별 CSV 파일 생성')
     parser.add_argument('--output-dir', type=str, default='data/raw',
                         help='카테고리별 CSV 저장 디렉토리 (기본: data/raw)')
+    parser.add_argument('--category', type=str, 
+                        help='데이터를 가져올 카테고리 그룹 (tops, sleeveless_onepiece_vest, pants, skirts)')
     
     args = parser.parse_args()
     
-    fetcher = DataFetcher(args.config)
+    fetcher = DataFetcher(args.config, target_category=args.category)
     
     # 기본 동작: 카테고리별로 개별 파일 생성
     fetcher.fetch_by_category(args.output_dir if args.by_category else 'data/raw')
