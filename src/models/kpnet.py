@@ -72,13 +72,17 @@ class KPNet(nn.Module):
     def _get_backbone(self, backbone: str, pretrained: bool) -> nn.Module:
         """Get ResNet backbone."""
         if backbone == 'resnet18':
-            resnet = models.resnet18(pretrained=pretrained)
+            weights = 'IMAGENET1K_V1' if pretrained else None
+            resnet = models.resnet18(weights=weights)
         elif backbone == 'resnet34':
-            resnet = models.resnet34(pretrained=pretrained)
+            weights = 'IMAGENET1K_V1' if pretrained else None
+            resnet = models.resnet34(weights=weights)
         elif backbone == 'resnet50':
-            resnet = models.resnet50(pretrained=pretrained)
+            weights = 'IMAGENET1K_V1' if pretrained else None
+            resnet = models.resnet50(weights=weights)
         elif backbone == 'resnet101':
-            resnet = models.resnet101(pretrained=pretrained)
+            weights = 'IMAGENET1K_V1' if pretrained else None
+            resnet = models.resnet101(weights=weights)
         else:
             raise ValueError(f"Unsupported backbone: {backbone}")
         
